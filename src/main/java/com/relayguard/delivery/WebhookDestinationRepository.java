@@ -8,4 +8,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface WebhookDestinationRepository extends JpaRepository<WebhookDestination, UUID> {
     List<WebhookDestination> findByProject_IdAndEnabledTrueOrderByCreatedAtDesc(UUID projectId);
     Optional<WebhookDestination> findByIdAndProject_Id(UUID id, UUID projectId);
+    long countByProject_IdAndEnabledTrue(UUID projectId);
 }

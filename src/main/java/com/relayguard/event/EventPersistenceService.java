@@ -17,15 +17,18 @@ public class EventPersistenceService {
     private final WebhookEventRepository events;
     private final ProjectRepository projects;
     private final DeliveryOutbox outbox;
+    private final WorkspaceQuotaService quotas;
     private final Counter acceptedEvents;
     private final int retentionDays;
 
     public EventPersistenceService(WebhookEventRepository events, ProjectRepository projects, DeliveryOutbox outbox,
-            MeterRegistry meters, @Value("${relayguard.retention.days:30}") int retentionDays) {
+            WorkspaceQuotaService quotas, MeterRegistry meters,
+            @Value("${relayguard.retention.days:30}") int retentionDays) {
         if (retentionDays < 1) throw new IllegalArgumentException("Retention must be at least one day");
         this.events = events;
         this.projects = projects;
         this.outbox = outbox;
+        this.quotas = quotas;
         this.acceptedEvents = Counter.builder("relayguard.events.accepted").register(meters);
         this.retentionDays = retentionDays;
     }
@@ -35,6 +38,7 @@ public class EventPersistenceService {
             String fingerprint, UUID projectId) {
         Project project = projects.findById(projectId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Project credential is invalid"));
+        quotas.recordAcceptedEvent(project.getWorkspace().getId());
         WebhookEvent event = events.saveAndFlush(
                 new WebhookEvent(eventType, payload, idempotencyKey, fingerprint, project, retentionDays));
         outbox.enqueueFor(event);

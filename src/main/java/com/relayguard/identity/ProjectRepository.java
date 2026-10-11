@@ -16,4 +16,5 @@ public interface ProjectRepository extends JpaRepository<Project, UUID> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from Project p where p.id = :id")
     Optional<Project> findByIdForUpdate(@Param("id") UUID id);
+
 }

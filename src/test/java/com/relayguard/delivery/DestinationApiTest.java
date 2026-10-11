@@ -96,6 +96,39 @@ class DestinationApiTest {
     }
 
     @Test
+    void enforcesTenEnabledDestinationsPerProjectAndAllowsReplacementAfterDisable() throws Exception {
+        TestProject project = createProject();
+        String firstDestinationId = null;
+        for (int i = 0; i < 10; i++) {
+            String response = mockMvc.perform(post("/api/v1/projects/{id}/destinations", project.projectId())
+                            .header("Authorization", "Bearer " + project.token())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(Map.of("url", "https://1.1.1.1/quota-" + i))))
+                    .andExpect(status().isCreated())
+                    .andReturn().getResponse().getContentAsString();
+            if (i == 0) firstDestinationId = objectMapper.readTree(response).get("id").asText();
+        }
+
+        mockMvc.perform(post("/api/v1/projects/{id}/destinations", project.projectId())
+                        .header("Authorization", "Bearer " + project.token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("url", "https://1.1.1.1/quota-over"))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("DESTINATION_QUOTA_EXCEEDED"));
+
+        mockMvc.perform(delete("/api/v1/projects/{projectId}/destinations/{destinationId}",
+                        project.projectId(), firstDestinationId)
+                        .header("Authorization", "Bearer " + project.token()))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(post("/api/v1/projects/{id}/destinations", project.projectId())
+                        .header("Authorization", "Bearer " + project.token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("url", "https://1.1.1.1/quota-replacement"))))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
     void preventsOtherWorkspacesFromManagingDestinations() throws Exception {
         TestProject owner = createProject();
         TestProject other = createProject();

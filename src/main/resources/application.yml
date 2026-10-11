@@ -31,6 +31,10 @@ relayguard:
     cleanup-interval-ms: ${RELAYGUARD_RETENTION_CLEANUP_INTERVAL_MS:3600000}
   ingest:
     max-request-bytes: ${RELAYGUARD_MAX_REQUEST_BYTES:1048576}
+  quotas:
+    events-per-workspace-month: ${RELAYGUARD_EVENTS_PER_WORKSPACE_MONTH:100000}
+    warning-percent: 80
+    destinations-per-project: 10
   delivery:
     enabled: ${RELAYGUARD_DELIVERY_ENABLED:true}
     poll-interval-ms: ${RELAYGUARD_DELIVERY_POLL_INTERVAL_MS:1000}

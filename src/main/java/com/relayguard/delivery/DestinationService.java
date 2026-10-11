@@ -2,6 +2,7 @@ package com.relayguard.delivery;
 
 import com.relayguard.identity.Project;
 import com.relayguard.identity.ProjectAccessService;
+import com.relayguard.identity.ProjectRepository;
 import java.net.URI;
 import java.util.List;
 import java.util.UUID;
@@ -9,6 +10,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.beans.factory.annotation.Value;
 
 @Service
 public class DestinationService {
@@ -17,14 +19,21 @@ public class DestinationService {
     private final DestinationUrlValidator validator;
     private final AuditEventService audit;
     private final DeliveryRetryPolicy defaults;
+    private final ProjectRepository projects;
+    private final int maxDestinationsPerProject;
 
     public DestinationService(WebhookDestinationRepository destinations, ProjectAccessService access,
-            DestinationUrlValidator validator, AuditEventService audit, DeliveryRetryPolicy defaults) {
+            DestinationUrlValidator validator, AuditEventService audit, DeliveryRetryPolicy defaults,
+            ProjectRepository projects,
+            @Value("${relayguard.quotas.destinations-per-project:10}") int maxDestinationsPerProject) {
         this.destinations = destinations;
         this.access = access;
         this.validator = validator;
         this.audit = audit;
         this.defaults = defaults;
+        this.projects = projects;
+        if (maxDestinationsPerProject < 1) throw new IllegalArgumentException("Destination limit must be positive");
+        this.maxDestinationsPerProject = maxDestinationsPerProject;
     }
 
     @Transactional(readOnly = true)
@@ -36,7 +45,12 @@ public class DestinationService {
 
     @Transactional
     public DestinationResponse create(UUID userId, UUID projectId, CreateDestinationRequest request) {
-        Project project = access.requireOwner(userId, projectId);
+        access.requireOwner(userId, projectId);
+        Project project = projects.findByIdForUpdate(projectId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
+        if (destinations.countByProject_IdAndEnabledTrue(projectId) >= maxDestinationsPerProject) {
+            throw new DestinationQuotaExceededException(maxDestinationsPerProject);
+        }
         URI valid = validator.validate(request.url());
         int maxAttempts = request.retryMaxAttempts() == null ? defaults.maxAttempts() : request.retryMaxAttempts();
         long baseDelay = request.retryBaseDelayMs() == null ? defaults.baseDelayMs() : request.retryBaseDelayMs();

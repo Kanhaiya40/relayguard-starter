@@ -1,8 +1,13 @@
 package com.relayguard.config;
 
+import com.relayguard.delivery.DestinationQuotaExceededException;
+import com.relayguard.event.WorkspaceQuotaExceededException;
 import jakarta.validation.ConstraintViolationException;
+import java.time.Duration;
+import java.time.Instant;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -12,6 +17,21 @@ import org.springframework.web.server.ResponseStatusException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+    @ExceptionHandler(WorkspaceQuotaExceededException.class)
+    ResponseEntity<ApiErrorResponse> workspaceQuota(WorkspaceQuotaExceededException exception) {
+        long retryAfter = Math.max(1, Duration.between(Instant.now(), exception.getResetsAt()).toSeconds());
+        ApiErrorResponse body = ApiErrorResponse.of("WORKSPACE_EVENT_QUOTA_EXCEEDED",
+                "Workspace monthly event quota reached; it resets at " + exception.getResetsAt(), 429);
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, Long.toString(retryAfter)).body(body);
+    }
+
+    @ExceptionHandler(DestinationQuotaExceededException.class)
+    ResponseEntity<ApiErrorResponse> destinationQuota(DestinationQuotaExceededException exception) {
+        return error(HttpStatus.CONFLICT, "DESTINATION_QUOTA_EXCEEDED",
+                "Project destination limit reached (" + exception.getDestinationLimit() + ")");
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseEntity<ApiErrorResponse> validation(MethodArgumentNotValidException exception) {
         return error(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Request validation failed");
