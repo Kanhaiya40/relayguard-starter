@@ -4,9 +4,9 @@ services:
     environment:
       POSTGRES_DB: relayguard
       POSTGRES_USER: relayguard
-      POSTGRES_PASSWORD: relayguard_local_only
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-relayguard_local_only}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - relayguard_pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -22,8 +22,8 @@ services:
     environment:
       DATABASE_URL: jdbc:postgresql://postgres:5432/relayguard
       DATABASE_USERNAME: relayguard
-      DATABASE_PASSWORD: relayguard_local_only
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-relayguard_local_only}
     ports:
-      - "8080:8080"
+      - "127.0.0.1:${APP_PORT:-8080}:8080"
 volumes:
   relayguard_pgdata:

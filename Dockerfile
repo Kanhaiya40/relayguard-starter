@@ -7,5 +7,8 @@ RUN mvn --batch-mode --no-transfer-progress clean package -DskipTests
 FROM eclipse-temurin:21-jre
 WORKDIR /app
 COPY --from=build /app/target/relayguard-0.1.0-SNAPSHOT.jar app.jar
+RUN groupadd --system relayguard && useradd --system --gid relayguard --home-dir /app relayguard \
+    && chown relayguard:relayguard /app/app.jar
+USER relayguard:relayguard
 EXPOSE 8080
 ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75.0", "-jar", "/app/app.jar"]

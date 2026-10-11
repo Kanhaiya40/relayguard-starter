@@ -17,3 +17,5 @@ jobs:
           cache: maven
       - name: Build and test
         run: mvn --batch-mode --no-transfer-progress clean verify
+      - name: Build runtime container image
+        run: docker build --tag relayguard:ci .

@@ -132,3 +132,5 @@ Passwords use BCrypt. User access tokens expire after 30 days and can be revoked
 Remaining work before a paid, general-availability launch includes accessibility review for the dashboard, configurable per-destination retry and alert settings, email notifications, workspace quotas and billing-grade usage controls, payload redaction, production deployment hardening, backup/restore drills, load testing, and an independent security review. Do not use real customer payloads or credentials until production data handling and security controls have been reviewed. A controlled pilot must have an explicit customer agreement and operator-managed retention limits.
 
 See `CHECKLIST.md` for the master tracker and `AGENT_WORKFLOW.md` for the engineering workflow.
+
+Pilot operators must read [`docs/OPERATIONS.md`](docs/OPERATIONS.md) before accepting customer data. Vulnerability reporting instructions are in [`SECURITY.md`](SECURITY.md).
