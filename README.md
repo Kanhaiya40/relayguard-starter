@@ -149,7 +149,7 @@ New events are retained for 30 days by default. Set `RELAYGUARD_RETENTION_DAYS` 
 
 ## Authentication, health, and release status
 
-Log in at `POST /api/v1/auth/login` to issue another user access token. Revoke a user token at `POST /api/v1/auth/tokens/{credentialId}/revoke`. Revoke a project key at `POST /api/v1/projects/{projectId}/credentials/{credentialId}/revoke`. Workspace and project management calls use bearer tokens and verify membership; event ingestion and lookup use a project key. Operational endpoints are `GET /actuator/health`, `/actuator/health/liveness`, `/actuator/health/readiness`, and `/actuator/metrics`. Metrics use bounded labels and do not include project or workspace IDs.
+Log in at `POST /api/v1/auth/login` to issue another user access token. Revoke a user token at `POST /api/v1/auth/tokens/{credentialId}/revoke`. Revoke a project key at `POST /api/v1/projects/{projectId}/credentials/{credentialId}/revoke`. Workspace and project management calls use bearer tokens and verify membership; event ingestion and lookup use a project key. Operational endpoints are `GET /actuator/health`, `/actuator/health/liveness`, and `/actuator/health/readiness`. The default development profile also exposes `/actuator/metrics`; production requires `SPRING_PROFILES_ACTIVE=production`, which requires `DATABASE_URL`, `DATABASE_USERNAME`, and `DATABASE_PASSWORD` and exposes health and info only. Metrics use bounded labels and do not include project or workspace IDs.
 
 Passwords use BCrypt. User access tokens expire after 30 days and can be revoked; project credentials are random secrets and only hashes are stored. Use HTTPS in deployed environments. The current Compose database password is only for local development.
 
