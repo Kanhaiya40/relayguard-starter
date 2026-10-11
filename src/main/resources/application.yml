@@ -14,9 +14,27 @@ spring:
 server:
   port: ${PORT:8080}
 relayguard:
-  api-key: ${RELAYGUARD_API_KEY:local-dev-key-change-me}
+  rate-limit:
+    events-per-minute: ${RELAYGUARD_EVENTS_PER_MINUTE:600}
+  ingest:
+    max-request-bytes: ${RELAYGUARD_MAX_REQUEST_BYTES:1048576}
+  delivery:
+    enabled: ${RELAYGUARD_DELIVERY_ENABLED:true}
+    poll-interval-ms: ${RELAYGUARD_DELIVERY_POLL_INTERVAL_MS:1000}
+    max-attempts: ${RELAYGUARD_DELIVERY_MAX_ATTEMPTS:8}
+    base-delay-ms: ${RELAYGUARD_DELIVERY_BASE_DELAY_MS:1000}
+    max-delay-ms: ${RELAYGUARD_DELIVERY_MAX_DELAY_MS:3600000}
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db
+        liveness:
+          include: livenessState

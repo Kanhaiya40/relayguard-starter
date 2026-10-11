@@ -23,7 +23,6 @@ services:
       DATABASE_URL: jdbc:postgresql://postgres:5432/relayguard
       DATABASE_USERNAME: relayguard
       DATABASE_PASSWORD: relayguard_local_only
-      RELAYGUARD_API_KEY: local-dev-key-change-me
     ports:
       - "8080:8080"
 volumes:

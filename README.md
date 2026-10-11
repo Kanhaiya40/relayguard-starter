@@ -1,90 +1,119 @@
 # RelayGuard — Webhook Reliability Platform
 
-A Spring Boot starter for the RelayGuard MVP. This repository currently implements the **first vertical slice**: authenticated event ingestion, durable event persistence, event lookup, database migration, and automated API tests. It is a development starter, **not production-ready webhook infrastructure** yet.
+RelayGuard is an early webhook-reliability MVP. The backend accepts project-scoped events, persists them with idempotency, queues deliveries for configured destinations, records attempts, retries transient failures, and allows authorized workspace members to replay an event. It is not yet ready for production or sale: the dashboard, notifications, usage controls, retention tooling, deployment operations, and independent security review remain incomplete.
 
-## Tech stack
+## Stack and requirements
 
-- Java 21
+- Java 21 and Maven 3.9+
 - Spring Boot 3.5.6
-- Spring Web, Validation, Data JPA, Actuator
-- PostgreSQL + Flyway
-- H2 for fast automated tests
-- Maven
-- GitHub Actions CI
+- PostgreSQL 16+ with Flyway migrations
+- Docker Compose for local PostgreSQL
 
-## Requirements
-
-- JDK 21
-- Maven 3.9+
-- Docker with Docker Compose (for PostgreSQL/local full stack)
-
-## Run automated tests
+## Verify
 
 ```bash
-mvn clean verify
+./mvnw clean verify
 ```
 
-The tests use an in-memory H2 database and do not require Docker.
+Fast API tests use H2. `PostgresDeliveryQueueIntegrationTest` uses Testcontainers to apply the real Flyway migrations and exercise PostgreSQL's delivery queue SQL; it runs when Docker is available.
 
 ## Run locally
 
-1. Start PostgreSQL:
+Start PostgreSQL and the application:
 
-   ```bash
-   docker compose up -d postgres
-   ```
+```bash
+docker compose up -d postgres
+./mvnw spring-boot:run
+```
 
-2. Start the app:
+Open [http://localhost:8080/](http://localhost:8080/) for the lightweight dashboard. User access tokens and project keys stay in the current tab's memory; sign in again after refreshing or closing it.
 
-   ```bash
-   export RELAYGUARD_API_KEY='local-dev-key-change-me'
-   mvn spring-boot:run
-   ```
+Local database defaults are in `src/main/resources/application.yml`; they are for development only. The worker is enabled by default. To run only the API locally, set `RELAYGUARD_DELIVERY_ENABLED=false`.
 
-   Default local database settings are in `src/main/resources/application.yml`.
+## Create an account and project
 
-3. Submit an event:
+Register an account. This creates an owner membership and workspace and returns a bearer token. Passwords must be 12–72 UTF-8 bytes.
 
-   ```bash
-   curl -i http://localhost:8080/api/v1/events \
-     -H 'Content-Type: application/json' \
-     -H 'X-API-Key: local-dev-key-change-me' \
-     -d '{"eventType":"order.created","payload":{"orderId":"ord_123"}}'
-   ```
+```bash
+curl -sS http://localhost:8080/api/v1/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"owner@example.test","password":"correct-horse-battery-staple","workspaceName":"Example workspace"}'
+```
 
-4. Use the returned `id` to inspect the event:
+Use the returned `accessToken` and `workspaceId` to create a project:
 
-   ```bash
-   curl http://localhost:8080/api/v1/events/REPLACE_WITH_EVENT_UUID \
-     -H 'X-API-Key: local-dev-key-change-me'
-   ```
+```bash
+curl -sS http://localhost:8080/api/v1/workspaces/REPLACE_WITH_WORKSPACE_ID/projects \
+  -H 'Authorization: Bearer REPLACE_WITH_ACCESS_TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"production"}'
+```
 
-5. Health check: `GET http://localhost:8080/actuator/health`.
+Issue a project credential. Its raw value is returned once; RelayGuard stores only its SHA-256 hash. Rotation issues a replacement while the old key remains valid, so revoke the old credential after updating the client.
 
-For the full container stack, use `docker compose up --build`.
+```bash
+curl -sS -X POST http://localhost:8080/api/v1/projects/REPLACE_WITH_PROJECT_ID/credentials \
+  -H 'Authorization: Bearer REPLACE_WITH_ACCESS_TOKEN'
+```
 
-## Important security notice
+## Configure a destination
 
-`RELAYGUARD_API_KEY` is a single shared development key to bootstrap the first vertical slice. It is **not** the final per-project credential model. Do not expose this configuration to the public internet or use real customer data. Before a public pilot, implement hashed, project-scoped, revocable credentials; tenant isolation; rate limiting; request-size limits; payload retention/deletion; and SSRF-safe outbound delivery validation.
+Destination management uses the user bearer token. The destination must be a public HTTP(S) URL. Private, loopback, link-local, multicast, metadata, and other non-public addresses are rejected. DNS is checked again by the delivery transport when it connects, redirects are disabled, and network timeouts are bounded.
 
-## Product status
+```bash
+curl -sS http://localhost:8080/api/v1/projects/REPLACE_WITH_PROJECT_ID/destinations \
+  -H 'Authorization: Bearer REPLACE_WITH_ACCESS_TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{"url":"https://receiver.example.test/webhooks"}'
+```
 
-- [x] Initial Spring Boot project
-- [x] PostgreSQL configuration and Flyway migration
-- [x] Authenticated event ingestion endpoint
-- [x] Event lookup endpoint
-- [x] CI workflow running `mvn clean verify`
-- [x] Automated tests for acceptance, missing/wrong key, validation, and not-found behavior
-- [ ] Project/workspace model and project-scoped credentials
-- [ ] Webhook destinations
-- [ ] Durable asynchronous delivery worker
-- [ ] Delivery attempt history
-- [ ] Retry scheduler and dead-letter state
-- [ ] Safe manual replay
-- [ ] Rate limiting and payload-size limits
-- [ ] SSRF protections
-- [ ] Dashboard
-- [ ] Email notifications
-- [ ] Production deployment and backup/recovery runbook
+## Ingest and retrieve an event
 
-Use `CHECKLIST.md` as the master tracker and `AGENT_WORKFLOW.md` to direct coding agents.
+Use the project credential as `X-API-Key`:
+
+```bash
+curl -i http://localhost:8080/api/v1/events \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: REPLACE_WITH_PROJECT_CREDENTIAL' \
+  -H 'Idempotency-Key: order-123' \
+  -d '{"eventType":"order.created","payload":{"orderId":"ord_123"}}'
+```
+
+The API persists the event and delivery jobs before returning `202 Accepted` and an event ID. Retrieve the event and its delivery history with the same project credential:
+
+```bash
+curl http://localhost:8080/api/v1/events/REPLACE_WITH_EVENT_UUID \
+  -H 'X-API-Key: REPLACE_WITH_PROJECT_CREDENTIAL'
+
+curl http://localhost:8080/api/v1/events/REPLACE_WITH_EVENT_UUID/deliveries \
+  -H 'X-API-Key: REPLACE_WITH_PROJECT_CREDENTIAL'
+```
+
+Repeated ingestion idempotency keys with the same event type and payload return the original event. Reusing a key with a different request returns `409 Conflict`. Keys are scoped to the project. Request bodies are limited to 1 MiB by default; set `RELAYGUARD_MAX_REQUEST_BYTES` to change the limit. API errors use `code`, `message`, `status`, and `timestamp` fields.
+
+## Replay an event
+
+Replay uses the user bearer token, checks project membership, and requires an `Idempotency-Key`. Each accepted replay creates new jobs for currently enabled destinations; previous jobs and attempts remain intact. Reusing the same key returns the existing replay instead of creating duplicate jobs. Replay actions appear in the event's audit endpoint. Project audit history (`GET /api/v1/projects/{projectId}/audit`) also records project creation, destination changes, and project credential issue/revoke actions; only the latest 100 records are returned.
+
+```bash
+curl -i -X POST http://localhost:8080/api/v1/projects/REPLACE_WITH_PROJECT_ID/events/REPLACE_WITH_EVENT_UUID/replays \
+  -H 'Authorization: Bearer REPLACE_WITH_ACCESS_TOKEN' \
+  -H 'Idempotency-Key: replay-123'
+
+curl http://localhost:8080/api/v1/projects/REPLACE_WITH_PROJECT_ID/events/REPLACE_WITH_EVENT_UUID/audit \
+  -H 'Authorization: Bearer REPLACE_WITH_ACCESS_TOKEN'
+```
+
+The retry policy is bounded and persisted in PostgreSQL; exhausted jobs remain visible in delivery history. Delivery is at least once: receiver endpoints should use the event ID for their own deduplication. RelayGuard cannot guarantee exactly-once processing by a receiver.
+
+Event ingestion is limited to 600 requests per project per minute by default. Configure the server-wide limit with `RELAYGUARD_EVENTS_PER_MINUTE`; a rejected request receives `429 Too Many Requests` and a `Retry-After` header. This is an operational safeguard, not a billing or per-customer plan system.
+
+## Authentication, health, and release status
+
+Log in at `POST /api/v1/auth/login` to issue another user access token. Revoke a user token at `POST /api/v1/auth/tokens/{credentialId}/revoke`. Revoke a project key at `POST /api/v1/projects/{projectId}/credentials/{credentialId}/revoke`. Workspace and project management calls use bearer tokens and verify membership; event ingestion and lookup use a project key. Operational endpoints are `GET /actuator/health`, `/actuator/health/liveness`, `/actuator/health/readiness`, and `/actuator/metrics`. Metrics use bounded labels and do not include project or workspace IDs.
+
+Passwords use BCrypt. User access tokens expire after 30 days and can be revoked; project credentials are random secrets and only hashes are stored. Use HTTPS in deployed environments. The current Compose database password is only for local development.
+
+Remaining MVP work includes destination/status filtering and usability/accessibility review for the dashboard, configurable per-destination retry and alert settings, email notifications, workspace quotas and billing-grade usage controls, payload retention/deletion/redaction, production deployment hardening, backup/restore, load testing, and independent security review. The PostgreSQL integration test should be required and verified in CI. Do not use real customer payloads or credentials until the product's data policy and security review are complete.
+
+See `CHECKLIST.md` for the master tracker and `AGENT_WORKFLOW.md` for the engineering workflow.

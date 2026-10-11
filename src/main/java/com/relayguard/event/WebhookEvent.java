@@ -5,13 +5,19 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.time.Instant;
 import java.util.UUID;
+import com.relayguard.identity.Project;
 
 @Entity
-@Table(name = "webhook_events")
+@Table(name = "webhook_events", uniqueConstraints = @UniqueConstraint(
+        name = "uq_webhook_event_project_idempotency", columnNames = {"project_id", "idempotency_key"}))
 public class WebhookEvent {
     @Id
     private UUID id;
@@ -29,13 +35,35 @@ public class WebhookEvent {
     @Column(name = "received_at", nullable = false)
     private Instant receivedAt;
 
+    @Column(name = "idempotency_key", length = 255)
+    private String idempotencyKey;
+
+    @Column(name = "request_fingerprint", length = 64)
+    private String requestFingerprint;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "project_id")
+    private Project project;
+
     protected WebhookEvent() {}
 
     public WebhookEvent(String eventType, String payloadJson) {
+        this(eventType, payloadJson, null, null);
+    }
+
+    public WebhookEvent(String eventType, String payloadJson, String idempotencyKey, String requestFingerprint) {
+        this(eventType, payloadJson, idempotencyKey, requestFingerprint, null);
+    }
+
+    public WebhookEvent(String eventType, String payloadJson, String idempotencyKey,
+            String requestFingerprint, Project project) {
         this.id = UUID.randomUUID();
         this.eventType = eventType;
         this.payloadJson = payloadJson;
         this.status = EventStatus.ACCEPTED;
+        this.idempotencyKey = idempotencyKey;
+        this.requestFingerprint = requestFingerprint;
+        this.project = project;
     }
 
     @PrePersist
@@ -48,4 +76,7 @@ public class WebhookEvent {
     public String getPayloadJson() { return payloadJson; }
     public EventStatus getStatus() { return status; }
     public Instant getReceivedAt() { return receivedAt; }
+    public String getIdempotencyKey() { return idempotencyKey; }
+    public String getRequestFingerprint() { return requestFingerprint; }
+    public Project getProject() { return project; }
 }
