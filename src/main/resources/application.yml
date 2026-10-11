@@ -16,6 +16,9 @@ server:
 relayguard:
   rate-limit:
     events-per-minute: ${RELAYGUARD_EVENTS_PER_MINUTE:600}
+  retention:
+    days: ${RELAYGUARD_RETENTION_DAYS:30}
+    cleanup-interval-ms: ${RELAYGUARD_RETENTION_CLEANUP_INTERVAL_MS:3600000}
   ingest:
     max-request-bytes: ${RELAYGUARD_MAX_REQUEST_BYTES:1048576}
   delivery:

@@ -3,7 +3,14 @@ package com.relayguard.event;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.UUID;
+import java.time.Instant;
+import com.relayguard.delivery.DeliveryHistoryService;
+import com.relayguard.delivery.DeliveryHistoryResponse;
+import com.relayguard.delivery.DeliveryState;
+import com.relayguard.identity.IdentityRequestAttributes;
+import com.relayguard.config.ApiErrorResponse;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -11,14 +18,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestAttribute;
-import com.relayguard.identity.IdentityRequestAttributes;
-import com.relayguard.delivery.DeliveryHistoryService;
-import com.relayguard.delivery.DeliveryHistoryResponse;
-import com.relayguard.config.ApiErrorResponse;
-import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RequestParam;
-import java.time.Instant;
 
 @RestController
 @RequestMapping("/api/v1/events")
@@ -60,9 +61,11 @@ public class EventController {
             @RequestParam(required = false) String eventType,
             @RequestParam(required = false) Instant from,
             @RequestParam(required = false) Instant to,
+            @RequestParam(required = false) UUID destinationId,
+            @RequestParam(required = false) DeliveryState deliveryStatus,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "25") int size) {
-        return eventService.list(projectId, eventType, from, to, page, size);
+        return eventService.list(projectId, eventType, from, to, destinationId, deliveryStatus, page, size);
     }
 
     @GetMapping("/{id}/deliveries")

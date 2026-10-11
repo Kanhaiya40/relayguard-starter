@@ -20,6 +20,8 @@ import com.relayguard.identity.ProjectCredentialService;
 import com.relayguard.identity.ProjectRepository;
 import com.relayguard.identity.Workspace;
 import com.relayguard.identity.WorkspaceRepository;
+import com.relayguard.delivery.WebhookDestination;
+import com.relayguard.delivery.WebhookDestinationRepository;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -28,13 +30,15 @@ class EventControllerTest {
     @Autowired ProjectCredentialService credentialService;
     @Autowired ProjectRepository projectRepository;
     @Autowired WorkspaceRepository workspaceRepository;
+    @Autowired WebhookDestinationRepository destinationRepository;
 
     private String apiKey;
+    private Project project;
 
     @BeforeEach
     void createProjectCredential() {
         Workspace workspace = workspaceRepository.saveAndFlush(new Workspace("event-test-" + UUID.randomUUID()));
-        Project project = projectRepository.saveAndFlush(new Project(workspace, "test-project"));
+        project = projectRepository.saveAndFlush(new Project(workspace, "test-project"));
         IssuedProjectCredential credential = credentialService.issue(project);
         apiKey = credential.token();
     }
@@ -134,6 +138,34 @@ class EventControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
                 .andExpect(jsonPath("$.status").value(400));
+    }
+
+    @Test
+    void filtersEventsByProjectDestinationAndDeliveryState() throws Exception {
+        WebhookDestination destination = destinationRepository.saveAndFlush(
+                new WebhookDestination(project, "https://1.1.1.1/filter-test"));
+        String response = mockMvc.perform(post("/api/v1/events")
+                        .header("X-API-Key", apiKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"eventType\":\"filter.test\",\"payload\":{}}"))
+                .andExpect(status().isAccepted())
+                .andReturn().getResponse().getContentAsString();
+        String eventId = new com.fasterxml.jackson.databind.ObjectMapper().readTree(response).get("id").asText();
+
+        mockMvc.perform(get("/api/v1/events")
+                        .param("destinationId", destination.getId().toString())
+                        .param("deliveryStatus", "PENDING")
+                        .header("X-API-Key", apiKey))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].id").value(eventId));
+
+        mockMvc.perform(get("/api/v1/events")
+                        .param("destinationId", destination.getId().toString())
+                        .param("deliveryStatus", "DELIVERED")
+                        .header("X-API-Key", apiKey))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(0));
     }
 
     @Test

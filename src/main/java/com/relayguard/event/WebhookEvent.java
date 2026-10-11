@@ -35,6 +35,9 @@ public class WebhookEvent {
     @Column(name = "received_at", nullable = false)
     private Instant receivedAt;
 
+    @Column(name = "retention_until", nullable = false)
+    private Instant retentionUntil;
+
     @Column(name = "idempotency_key", length = 255)
     private String idempotencyKey;
 
@@ -57,6 +60,12 @@ public class WebhookEvent {
 
     public WebhookEvent(String eventType, String payloadJson, String idempotencyKey,
             String requestFingerprint, Project project) {
+        this(eventType, payloadJson, idempotencyKey, requestFingerprint, project, 30);
+    }
+
+    public WebhookEvent(String eventType, String payloadJson, String idempotencyKey,
+            String requestFingerprint, Project project, int retentionDays) {
+        if (retentionDays < 1) throw new IllegalArgumentException("Retention must be at least one day");
         this.id = UUID.randomUUID();
         this.eventType = eventType;
         this.payloadJson = payloadJson;
@@ -64,6 +73,7 @@ public class WebhookEvent {
         this.idempotencyKey = idempotencyKey;
         this.requestFingerprint = requestFingerprint;
         this.project = project;
+        this.retentionUntil = Instant.now().plusSeconds(retentionDays * 24L * 60 * 60);
     }
 
     @PrePersist
@@ -76,6 +86,7 @@ public class WebhookEvent {
     public String getPayloadJson() { return payloadJson; }
     public EventStatus getStatus() { return status; }
     public Instant getReceivedAt() { return receivedAt; }
+    public Instant getRetentionUntil() { return retentionUntil; }
     public String getIdempotencyKey() { return idempotencyKey; }
     public String getRequestFingerprint() { return requestFingerprint; }
     public Project getProject() { return project; }

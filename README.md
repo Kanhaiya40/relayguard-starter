@@ -1,6 +1,6 @@
 # RelayGuard — Webhook Reliability Platform
 
-RelayGuard is an early webhook-reliability MVP. The backend accepts project-scoped events, persists them with idempotency, queues deliveries for configured destinations, records attempts, retries transient failures, and allows authorized workspace members to replay an event. It is not yet ready for production or sale: the dashboard, notifications, usage controls, retention tooling, deployment operations, and independent security review remain incomplete.
+RelayGuard is a webhook-reliability pilot product. It accepts project-scoped events, persists them with idempotency, queues deliveries for configured destinations, records attempts, retries transient failures, and lets authorized workspace members inspect, replay, and delete events. It is suitable for a controlled pilot only after the operator configures production infrastructure, data handling, backups, and monitoring. It is not a general-purpose production service or a substitute for receiver-side idempotency.
 
 ## Stack and requirements
 
@@ -89,6 +89,8 @@ curl http://localhost:8080/api/v1/events/REPLACE_WITH_EVENT_UUID/deliveries \
   -H 'X-API-Key: REPLACE_WITH_PROJECT_CREDENTIAL'
 ```
 
+The event list accepts optional `eventType`, `from`, `to`, `destinationId`, and `deliveryStatus` filters plus `page` and `size`. `deliveryStatus` is one of `PENDING`, `IN_PROGRESS`, `DELIVERED`, or `EXHAUSTED`. Destination IDs are validated against the authenticated project. The dashboard exposes these filters and keeps results paginated.
+
 Repeated ingestion idempotency keys with the same event type and payload return the original event. Reusing a key with a different request returns `409 Conflict`. Keys are scoped to the project. Request bodies are limited to 1 MiB by default; set `RELAYGUARD_MAX_REQUEST_BYTES` to change the limit. API errors use `code`, `message`, `status`, and `timestamp` fields.
 
 ## Replay an event
@@ -108,12 +110,16 @@ The retry policy is bounded and persisted in PostgreSQL; exhausted jobs remain v
 
 Event ingestion is limited to 600 requests per project per minute by default. Configure the server-wide limit with `RELAYGUARD_EVENTS_PER_MINUTE`; a rejected request receives `429 Too Many Requests` and a `Retry-After` header. This is an operational safeguard, not a billing or per-customer plan system.
 
+## Payload retention and deletion
+
+New events are retained for 30 days by default. Set `RELAYGUARD_RETENTION_DAYS` to a value of at least 1 to change the retention period for newly accepted events. A scheduled cleanup removes expired events together with their delivery jobs and attempt history in batches of up to 100; change the interval with `RELAYGUARD_RETENTION_CLEANUP_INTERVAL_MS` (default 3,600,000 ms). An authorized project member can permanently delete an event and its delivery history with `DELETE /api/v1/projects/{projectId}/events/{eventId}`. The action is recorded in project audit history. Deletion is rejected while any delivery for that event is in progress. Existing events are backfilled to expire 30 days after receipt when the retention migration is applied.
+
 ## Authentication, health, and release status
 
 Log in at `POST /api/v1/auth/login` to issue another user access token. Revoke a user token at `POST /api/v1/auth/tokens/{credentialId}/revoke`. Revoke a project key at `POST /api/v1/projects/{projectId}/credentials/{credentialId}/revoke`. Workspace and project management calls use bearer tokens and verify membership; event ingestion and lookup use a project key. Operational endpoints are `GET /actuator/health`, `/actuator/health/liveness`, `/actuator/health/readiness`, and `/actuator/metrics`. Metrics use bounded labels and do not include project or workspace IDs.
 
 Passwords use BCrypt. User access tokens expire after 30 days and can be revoked; project credentials are random secrets and only hashes are stored. Use HTTPS in deployed environments. The current Compose database password is only for local development.
 
-Remaining MVP work includes destination/status filtering and usability/accessibility review for the dashboard, configurable per-destination retry and alert settings, email notifications, workspace quotas and billing-grade usage controls, payload retention/deletion/redaction, production deployment hardening, backup/restore, load testing, and independent security review. The PostgreSQL integration test should be required and verified in CI. Do not use real customer payloads or credentials until the product's data policy and security review are complete.
+Remaining work before a paid, general-availability launch includes accessibility review for the dashboard, configurable per-destination retry and alert settings, email notifications, workspace quotas and billing-grade usage controls, payload redaction, production deployment hardening, backup/restore drills, load testing, and an independent security review. Do not use real customer payloads or credentials until production data handling and security controls have been reviewed. A controlled pilot must have an explicit customer agreement and operator-managed retention limits.
 
 See `CHECKLIST.md` for the master tracker and `AGENT_WORKFLOW.md` for the engineering workflow.

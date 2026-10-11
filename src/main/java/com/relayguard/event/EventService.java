@@ -5,21 +5,25 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.relayguard.delivery.DeliveryJob;
+import com.relayguard.delivery.DeliveryState;
+import com.relayguard.delivery.WebhookDestinationRepository;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Subquery;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.HexFormat;
-import java.util.Map;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
-import java.time.Instant;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
-import jakarta.persistence.criteria.Predicate;
-import java.util.ArrayList;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -30,11 +34,14 @@ public class EventService {
     private final WebhookEventRepository repository;
     private final ObjectMapper objectMapper;
     private final EventPersistenceService persistence;
+    private final WebhookDestinationRepository destinations;
 
-    public EventService(WebhookEventRepository repository, ObjectMapper objectMapper, EventPersistenceService persistence) {
+    public EventService(WebhookEventRepository repository, ObjectMapper objectMapper,
+            EventPersistenceService persistence, WebhookDestinationRepository destinations) {
         this.repository = repository;
         this.objectMapper = objectMapper;
         this.persistence = persistence;
+        this.destinations = destinations;
     }
 
     public EventResponse ingest(IngestEventRequest request, String idempotencyKey, UUID projectId) {
@@ -117,9 +124,13 @@ public class EventService {
         }
     }
 
-    public EventListResponse list(UUID projectId, String eventType, Instant fromTime, Instant toTime, int page, int size) {
+    public EventListResponse list(UUID projectId, String eventType, Instant fromTime, Instant toTime,
+            UUID destinationId, DeliveryState deliveryState, int page, int size) {
         if (page < 0 || size < 1 || size > 100 || (fromTime != null && toTime != null && !fromTime.isBefore(toTime))) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid event list filters or pagination");
+        }
+        if (destinationId != null && destinations.findByIdAndProject_Id(destinationId, projectId).isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Destination not found");
         }
         String typeFilter = eventType == null || eventType.isBlank() ? null : eventType.trim().toLowerCase(java.util.Locale.ROOT);
         Specification<WebhookEvent> specification = (root, query, builder) -> {
@@ -128,6 +139,17 @@ public class EventService {
             if (typeFilter != null) predicates.add(builder.like(builder.lower(root.get("eventType")), "%" + typeFilter + "%"));
             if (fromTime != null) predicates.add(builder.greaterThanOrEqualTo(root.get("receivedAt"), fromTime));
             if (toTime != null) predicates.add(builder.lessThan(root.get("receivedAt"), toTime));
+            if (destinationId != null || deliveryState != null) {
+                Subquery<UUID> matchingEvents = query.subquery(UUID.class);
+                var job = matchingEvents.from(DeliveryJob.class);
+                matchingEvents.select(job.get("event").get("id"));
+                List<Predicate> jobPredicates = new ArrayList<>();
+                jobPredicates.add(builder.equal(job.get("event").get("id"), root.get("id")));
+                if (destinationId != null) jobPredicates.add(builder.equal(job.get("destination").get("id"), destinationId));
+                if (deliveryState != null) jobPredicates.add(builder.equal(job.get("state"), deliveryState));
+                matchingEvents.where(builder.and(jobPredicates.toArray(Predicate[]::new)));
+                predicates.add(builder.exists(matchingEvents));
+            }
             return builder.and(predicates.toArray(Predicate[]::new));
         };
         Page<WebhookEvent> result = repository.findAll(specification,
