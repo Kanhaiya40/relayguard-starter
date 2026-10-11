@@ -129,7 +129,7 @@ Log in at `POST /api/v1/auth/login` to issue another user access token. Revoke a
 
 Passwords use BCrypt. User access tokens expire after 30 days and can be revoked; project credentials are random secrets and only hashes are stored. Use HTTPS in deployed environments. The current Compose database password is only for local development.
 
-Remaining work before a paid, general-availability launch includes accessibility review for the dashboard, configurable per-destination retry and alert settings, email notifications, workspace quotas and billing-grade usage controls, payload redaction, production deployment hardening, backup/restore drills, load testing, and an independent security review. Do not use real customer payloads or credentials until production data handling and security controls have been reviewed. A controlled pilot must have an explicit customer agreement and operator-managed retention limits.
+Remaining work before a paid, general-availability launch includes accessibility review for the dashboard, failure-threshold email notifications with alert deduplication, workspace quotas and billing-grade usage controls, payload redaction, production deployment hardening, backup/restore drills, load testing, and an independent security review. Do not use real customer payloads or credentials until production data handling and security controls have been reviewed. A controlled pilot must have an explicit customer agreement and operator-managed retention limits.
 
 See `CHECKLIST.md` for the master tracker and `AGENT_WORKFLOW.md` for the engineering workflow.
 
