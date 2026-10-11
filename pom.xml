@@ -4,7 +4,18 @@
   <groupId>com.relayguard</groupId><artifactId>relayguard</artifactId><version>0.1.0-SNAPSHOT</version>
   <name>RelayGuard</name><description>Webhook reliability and recovery platform</description>
   <parent><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-parent</artifactId><version>3.5.6</version><relativePath/></parent>
-  <properties><java.version>21</java.version></properties>
+  <properties><java.version>21</java.version><testcontainers.version>1.21.4</testcontainers.version></properties>
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.testcontainers</groupId>
+        <artifactId>testcontainers-bom</artifactId>
+        <version>${testcontainers.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
   <dependencies>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-validation</artifactId></dependency>
@@ -18,8 +29,8 @@
     <dependency><groupId>org.postgresql</groupId><artifactId>postgresql</artifactId><scope>runtime</scope></dependency>
     <dependency><groupId>com.h2database</groupId><artifactId>h2</artifactId><scope>test</scope></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope></dependency>
-    <dependency><groupId>org.testcontainers</groupId><artifactId>junit-jupiter</artifactId><version>1.21.3</version><scope>test</scope></dependency>
-    <dependency><groupId>org.testcontainers</groupId><artifactId>postgresql</artifactId><version>1.21.3</version><scope>test</scope></dependency>
+    <dependency><groupId>org.testcontainers</groupId><artifactId>junit-jupiter</artifactId><scope>test</scope></dependency>
+    <dependency><groupId>org.testcontainers</groupId><artifactId>postgresql</artifactId><scope>test</scope></dependency>
   </dependencies>
   <build><plugins><plugin><groupId>org.springframework.boot</groupId><artifactId>spring-boot-maven-plugin</artifactId></plugin></plugins></build>
 </project>
