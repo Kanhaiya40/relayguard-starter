@@ -1,0 +1,30 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: relayguard
+      POSTGRES_USER: relayguard
+      POSTGRES_PASSWORD: relayguard_local_only
+    ports:
+      - "5432:5432"
+    volumes:
+      - relayguard_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U relayguard -d relayguard"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  app:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/relayguard
+      DATABASE_USERNAME: relayguard
+      DATABASE_PASSWORD: relayguard_local_only
+      RELAYGUARD_API_KEY: local-dev-key-change-me
+    ports:
+      - "8080:8080"
+volumes:
+  relayguard_pgdata:

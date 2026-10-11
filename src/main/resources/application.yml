@@ -1,0 +1,22 @@
+spring:
+  application:
+    name: relayguard
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/relayguard}
+    username: ${DATABASE_USERNAME:relayguard}
+    password: ${DATABASE_PASSWORD:relayguard_local_only}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+server:
+  port: ${PORT:8080}
+relayguard:
+  api-key: ${RELAYGUARD_API_KEY:local-dev-key-change-me}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
