@@ -2,11 +2,11 @@
 
 This runbook covers a single-region, single-application pilot deployment. It is not a high-availability or compliance certification. The person operating a pilot must own the database, encryption keys, backups, access control, and customer incident communication.
 
-## Free demo deployment (Render + Neon)
+## Free demo deployment (Render)
 
-`render.yaml` defines a free Render web service built from the repository's Dockerfile. Use it for a demo with synthetic data only. Render free web services sleep after 15 minutes without inbound traffic, may take about a minute to wake, and Render explicitly says not to use them for production. Do not onboard customers or send customer payloads to this deployment.
+`render.yaml` defines a free Render web service and free Render PostgreSQL database. Use them for a demo with synthetic data only. Render free web services sleep after 15 minutes without inbound traffic, may take about a minute to wake, and Render explicitly says not to use them for production. Free Render PostgreSQL databases expire after 30 days and do not include backups. Do not onboard customers or send customer payloads to this deployment.
 
-Create a Neon free PostgreSQL project separately, then create the Render Blueprint from this repository. During setup, provide the Neon JDBC connection URL as `DATABASE_URL` (use `jdbc:postgresql://<host>/<database>?sslmode=require`), along with its database username and password in the prompted secret fields. Keep the URL and credentials in Render's secret settings; never commit them. The Neon free tier has compute and storage quotas and scales to zero while idle, so monitor usage and expect cold starts. Do not use Render's free Postgres for this demo because free databases expire after 30 days.
+Create the Render Blueprint from this repository's `codex/product-readiness` branch. The Blueprint supplies the database host, port, name, username, and password to the service from Render's managed database settings; do not copy these values into Git. The free database is temporary and has no backup protection, so use synthetic data and expect it to be deleted at expiration.
 
 After the first successful deploy, open the generated `onrender.com` URL and check `/actuator/health/readiness`. Then create a demo workspace/project and use synthetic webhook payloads only. A successful deploy is a demo milestone, not evidence of production reliability. For a customer pilot, move to always-on compute and a database plan with backups, verify SMTP with a test mailbox if alerts are enabled, and complete the security, retention, backup/restore, and support gates below.
 

@@ -34,4 +34,32 @@ class ProductionDatabaseConfigurationValidatorTest {
 
         assertDoesNotThrow(() -> validator.postProcessEnvironment(environment, new SpringApplication()));
     }
+
+    @Test
+    void acceptsRenderPostgresEnvironmentSettings() {
+        var environment = new MockEnvironment()
+                .withProperty("PGHOST", "db.example.test")
+                .withProperty("PGDATABASE", "relayguard")
+                .withProperty("PGUSER", "relayguard")
+                .withProperty("PGPASSWORD", "test-secret");
+        environment.setActiveProfiles("production");
+        var validator = new ProductionDatabaseConfigurationValidator();
+
+        assertDoesNotThrow(() -> validator.postProcessEnvironment(environment, new SpringApplication()));
+    }
+
+    @Test
+    void rejectsPartialRenderPostgresEnvironmentSettings() {
+        var environment = new MockEnvironment()
+                .withProperty("PGHOST", "db.example.test")
+                .withProperty("PGUSER", "relayguard");
+        environment.setActiveProfiles("production");
+        var validator = new ProductionDatabaseConfigurationValidator();
+
+        IllegalStateException exception = assertThrows(IllegalStateException.class,
+                () -> validator.postProcessEnvironment(environment, new SpringApplication()));
+
+        assertTrue(exception.getMessage().contains("PGHOST"));
+        assertTrue(exception.getMessage().contains("DATABASE_URL"));
+    }
 }

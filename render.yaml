@@ -9,11 +9,31 @@ services:
     envVars:
       - key: SPRING_PROFILES_ACTIVE
         value: production
-      - key: DATABASE_URL
-        sync: false
-      - key: DATABASE_USERNAME
-        sync: false
-      - key: DATABASE_PASSWORD
-        sync: false
+      - key: PGHOST
+        fromDatabase:
+          name: relayguard-demo-db
+          property: host
+      - key: PGPORT
+        fromDatabase:
+          name: relayguard-demo-db
+          property: port
+      - key: PGDATABASE
+        fromDatabase:
+          name: relayguard-demo-db
+          property: database
+      - key: PGUSER
+        fromDatabase:
+          name: relayguard-demo-db
+          property: user
+      - key: PGPASSWORD
+        fromDatabase:
+          name: relayguard-demo-db
+          property: password
       - key: RELAYGUARD_EMAIL_NOTIFICATIONS_ENABLED
         value: "false"
+
+databases:
+  - name: relayguard-demo-db
+    plan: free
+    databaseName: relayguard
+    user: relayguard

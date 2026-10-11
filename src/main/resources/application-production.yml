@@ -1,8 +1,8 @@
 spring:
   datasource:
-    url: ${DATABASE_URL}
-    username: ${DATABASE_USERNAME}
-    password: ${DATABASE_PASSWORD}
+    url: ${DATABASE_URL:jdbc:postgresql://${PGHOST}:${PGPORT:5432}/${PGDATABASE}}
+    username: ${DATABASE_USERNAME:${PGUSER}}
+    password: ${DATABASE_PASSWORD:${PGPASSWORD}}
 management:
   endpoints:
     web:
