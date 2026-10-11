@@ -38,17 +38,20 @@ public class DeliveryQueueService {
     private final DeliveryJobRepository jobs;
     private final DeliveryAttemptRepository attempts;
     private final DeliveryRetryPolicy retryPolicy;
+    private final EmailNotificationOutboxService notifications;
     private final Counter successfulAttempts;
     private final Counter failedAttempts;
     private final Timer attemptDuration;
 
     public DeliveryQueueService(JdbcTemplate jdbc, EntityManager entityManager, DeliveryJobRepository jobs,
-            DeliveryAttemptRepository attempts, DeliveryRetryPolicy retryPolicy, MeterRegistry meters) {
+            DeliveryAttemptRepository attempts, DeliveryRetryPolicy retryPolicy,
+            EmailNotificationOutboxService notifications, MeterRegistry meters) {
         this.jdbc = jdbc;
         this.entityManager = entityManager;
         this.jobs = jobs;
         this.attempts = attempts;
         this.retryPolicy = retryPolicy;
+        this.notifications = notifications;
         this.successfulAttempts = Counter.builder("relayguard.delivery.attempts").tag("outcome", "success").register(meters);
         this.failedAttempts = Counter.builder("relayguard.delivery.attempts").tag("outcome", "failure").register(meters);
         this.attemptDuration = Timer.builder("relayguard.delivery.duration").register(meters);
@@ -98,5 +101,6 @@ public class DeliveryQueueService {
             job.scheduleRetry(result.httpStatus(), result.errorCode(), retryPolicy.nextAttemptAt(
                     job.getAttemptCount(), now, destination.getRetryBaseDelayMs(), destination.getRetryMaxDelayMs()));
         }
+        notifications.recordFailure(job, result.errorCode(), now);
     }
 }

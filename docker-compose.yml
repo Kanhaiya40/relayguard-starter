@@ -23,6 +23,13 @@ services:
       DATABASE_URL: jdbc:postgresql://postgres:5432/relayguard
       DATABASE_USERNAME: relayguard
       DATABASE_PASSWORD: ${DATABASE_PASSWORD:-relayguard_local_only}
+      RELAYGUARD_EMAIL_NOTIFICATIONS_ENABLED: ${RELAYGUARD_EMAIL_NOTIFICATIONS_ENABLED:-false}
+      RELAYGUARD_EMAIL_FROM: ${RELAYGUARD_EMAIL_FROM:-no-reply@relayguard.local}
+      SMTP_HOST: ${SMTP_HOST:-localhost}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_AUTH: ${SMTP_AUTH:-false}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
     ports:
       - "127.0.0.1:${APP_PORT:-8080}:8080"
 volumes:

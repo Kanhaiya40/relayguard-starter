@@ -6,11 +6,12 @@ This runbook covers a single-region, single-application pilot deployment. It is 
 
 1. Run RelayGuard behind a TLS-terminating reverse proxy. Do not expose PostgreSQL publicly. Restrict `/actuator/metrics` to operators; expose health probes only as required by the platform.
 2. Set `DATABASE_URL`, `DATABASE_USERNAME`, and `DATABASE_PASSWORD` from the hosting platform's secret manager. Never use Compose's local development password in a hosted environment.
-3. Set and record `RELAYGUARD_RETENTION_DAYS`, `RELAYGUARD_MAX_REQUEST_BYTES`, per-project `RELAYGUARD_EVENTS_PER_MINUTE`, and default delivery retry settings. Agree on retention with each pilot customer before onboarding.
-4. Use a dedicated PostgreSQL database with encrypted storage and TLS connections. Restrict database network access to the application and backup operator.
-5. Enable GitHub Dependabot alerts, secret scanning and push protection, and CodeQL for the repository. Review findings before each release.
-6. Make a backup and complete the restore drill below before creating the first customer project. Repeat the drill quarterly and after material schema changes.
-7. Confirm a named operator can view health/metrics, revoke a project credential, disable a destination, and communicate an incident to the pilot customer.
+3. For email alerts, set `RELAYGUARD_EMAIL_NOTIFICATIONS_ENABLED=true` and configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_AUTH`, `SMTP_USERNAME`, `SMTP_PASSWORD`, and `RELAYGUARD_EMAIL_FROM` through the secret manager. Verify delivery with a test mailbox before onboarding. Keep SMTP timeouts bounded; the notification worker runs independently from webhook delivery. Alert recipient addresses are stored with project settings, so protect the database, backups, and operator access accordingly.
+4. Set and record `RELAYGUARD_RETENTION_DAYS`, `RELAYGUARD_MAX_REQUEST_BYTES`, per-project `RELAYGUARD_EVENTS_PER_MINUTE`, and default delivery retry settings. Agree on retention with each pilot customer before onboarding.
+5. Use a dedicated PostgreSQL database with encrypted storage and TLS connections. Restrict database network access to the application and backup operator.
+6. Enable GitHub Dependabot alerts, secret scanning and push protection, and CodeQL for the repository. Review findings before each release.
+7. Make a backup and complete the restore drill below before creating the first customer project. Repeat the drill quarterly and after material schema changes.
+8. Confirm a named operator can view health/metrics, revoke a project credential, disable a destination, and communicate an incident to the pilot customer.
 
 ## Health and first response
 

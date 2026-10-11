@@ -3,6 +3,7 @@ package com.relayguard.delivery;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -39,6 +40,8 @@ class PostgresDeliveryQueueIntegrationTest {
         properties.add("spring.jpa.hibernate.ddl-auto", () -> "validate");
         properties.add("spring.flyway.enabled", () -> "true");
         properties.add("relayguard.delivery.enabled", () -> "false");
+        properties.add("relayguard.notifications.email.enabled", () -> "true");
+        properties.add("relayguard.notifications.email.worker-enabled", () -> "false");
     }
 
     @Autowired MockMvc mockMvc;
@@ -48,6 +51,8 @@ class PostgresDeliveryQueueIntegrationTest {
     @Autowired DeliveryAttemptRepository attempts;
     @Autowired ProjectRepository projects;
     @Autowired ProjectCredentialService credentials;
+    @Autowired EmailNotificationOutboxRepository notificationOutbox;
+    @Autowired EmailNotificationOutboxService notificationService;
 
     @Test
     void postgresMigrationsAndSkipLockedQueueCanClaimDeliverAndPersistAttempt() throws Exception {
@@ -84,5 +89,58 @@ class PostgresDeliveryQueueIntegrationTest {
         assertEquals(DeliveryState.DELIVERED, job.getState());
         assertEquals(1, attempts.findByJob_IdOrderByAttemptNumberAsc(job.getId()).size());
         assertFalse(queue.claimNext().isPresent());
+    }
+
+    @Test
+    void postgresFailureThresholdQueuesOnePayloadFreeDeduplicatedEmail() throws Exception {
+        String email = "pg-alert-" + UUID.randomUUID() + "@example.test";
+        JsonNode account = objectMapper.readTree(mockMvc.perform(post("/api/v1/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("email", email,
+                                "password", "correct-horse-battery-staple", "workspaceName", "PG alert test"))))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+        String token = account.get("accessToken").asText();
+        JsonNode project = objectMapper.readTree(mockMvc.perform(post("/api/v1/workspaces/{id}/projects",
+                                account.get("workspaceId").asText())
+                        .header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"alert-test\"}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+        UUID projectId = UUID.fromString(project.get("id").asText());
+        mockMvc.perform(put("/api/v1/projects/{id}/notification-settings", projectId)
+                        .header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"enabled\":true,\"recipientEmail\":\"alerts@example.test\","
+                                + "\"failureThreshold\":1,\"windowMinutes\":30,\"cooldownMinutes\":10080}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/projects/{id}/destinations", projectId)
+                        .header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"url\":\"https://1.1.1.1/alert-test\"}"))
+                .andExpect(status().isCreated());
+        String key = credentials.rotate(projects.findById(projectId).orElseThrow()).token();
+
+        JsonNode firstEvent = objectMapper.readTree(mockMvc.perform(post("/api/v1/events").header("X-API-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"eventType\":\"alert.test\",\"payload\":{\"secret\":\"never-email\"}}"))
+                .andExpect(status().isAccepted()).andReturn().getResponse().getContentAsString());
+        ClaimedDelivery firstClaim = queue.claimNext().orElseThrow();
+        queue.complete(firstClaim, new DeliveryResult(500, "HTTP_500", 7));
+
+        mockMvc.perform(post("/api/v1/events").header("X-API-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"eventType\":\"alert.test\",\"payload\":{\"attempt\":2}}"))
+                .andExpect(status().isAccepted());
+        ClaimedDelivery secondClaim = queue.claimNext().orElseThrow();
+        queue.complete(secondClaim, new DeliveryResult(500, "HTTP_500", 8));
+
+        UUID firstEventId = UUID.fromString(firstEvent.get("id").asText());
+        var notices = notificationOutbox.findByEvent_Id(firstEventId);
+        assertEquals(1, notices.size());
+        assertEquals(EmailNotificationStatus.PENDING, notices.getFirst().getStatus());
+        assertEquals(1, notices.getFirst().getFailureCount());
+        assertEquals("alerts@example.test", notices.getFirst().getRecipientEmail());
+        assertFalse(notices.getFirst().getDeduplicationKey().contains("secret"));
+        var queuedMessage = notificationService.claimNext().orElseThrow();
+        assertEquals(firstEventId, queuedMessage.eventId());
+        assertEquals("1.1.1.1", queuedMessage.destinationHost());
+        assertEquals(1, queuedMessage.attemptCount());
     }
 }

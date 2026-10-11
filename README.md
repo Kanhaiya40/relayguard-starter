@@ -76,6 +76,19 @@ curl -sS -X PATCH http://localhost:8080/api/v1/projects/REPLACE_WITH_PROJECT_ID/
   -d '{"retryMaxAttempts":5,"retryBaseDelayMs":2000,"retryMaxDelayMs":120000}'
 ```
 
+## Configure email failure alerts
+
+The operator must configure SMTP and enable `RELAYGUARD_EMAIL_NOTIFICATIONS_ENABLED=true` before project owners can turn alerts on. Configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_AUTH`, `SMTP_USERNAME`, `SMTP_PASSWORD`, and `RELAYGUARD_EMAIL_FROM` from the hosting secret manager. SMTP connect/read/write timeouts default to 5 seconds. The notification worker uses its own scheduler thread and retries failed sends up to eight times; webhook delivery does not wait for email.
+
+Project owners can configure an alert recipient, failure threshold, rolling count window (1–1440 minutes), and repeat-alert cooldown (1–10080 minutes) in the dashboard or API. A deduplication key allows at most one alert per project, destination, and cooldown time bucket. Email contains the project, event ID, destination host, failure count, and a sanitized failure code. It never includes event payloads or credentials. Pending notifications are removed when their event is deleted or expires.
+
+```bash
+curl -i -X PUT http://localhost:8080/api/v1/projects/REPLACE_WITH_PROJECT_ID/notification-settings \
+  -H 'Authorization: Bearer REPLACE_WITH_ACCESS_TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{"enabled":true,"recipientEmail":"ops@example.test","failureThreshold":3,"windowMinutes":10,"cooldownMinutes":60}'
+```
+
 ## Ingest and retrieve an event
 
 Use the project credential as `X-API-Key`:
@@ -104,7 +117,7 @@ Repeated ingestion idempotency keys with the same event type and payload return 
 
 ## Replay an event
 
-Replay uses the user bearer token, checks project membership, and requires an `Idempotency-Key`. Each accepted replay creates new jobs for currently enabled destinations; previous jobs and attempts remain intact. Reusing the same key returns the existing replay instead of creating duplicate jobs. Replay actions appear in the event's audit endpoint. Project audit history (`GET /api/v1/projects/{projectId}/audit`) also records project creation, destination changes, and project credential issue/revoke actions; only the latest 100 records are returned.
+Replay uses the user bearer token, checks project membership, and requires an `Idempotency-Key`. Each accepted replay creates new jobs for currently enabled destinations; previous jobs and attempts remain intact. Reusing the same key returns the existing replay instead of creating duplicate jobs. Replay actions appear in the event's audit endpoint. Project audit history (`GET /api/v1/projects/{projectId}/audit`) also records project creation, destination and notification settings changes, and project credential issue/revoke actions; only the latest 100 records are returned.
 
 ```bash
 curl -i -X POST http://localhost:8080/api/v1/projects/REPLACE_WITH_PROJECT_ID/events/REPLACE_WITH_EVENT_UUID/replays \
@@ -129,7 +142,7 @@ Log in at `POST /api/v1/auth/login` to issue another user access token. Revoke a
 
 Passwords use BCrypt. User access tokens expire after 30 days and can be revoked; project credentials are random secrets and only hashes are stored. Use HTTPS in deployed environments. The current Compose database password is only for local development.
 
-Remaining work before a paid, general-availability launch includes accessibility review for the dashboard, failure-threshold email notifications with alert deduplication, workspace quotas and billing-grade usage controls, payload redaction, production deployment hardening, backup/restore drills, load testing, and an independent security review. Do not use real customer payloads or credentials until production data handling and security controls have been reviewed. A controlled pilot must have an explicit customer agreement and operator-managed retention limits.
+Remaining work before a paid, general-availability launch includes accessibility review for the dashboard, workspace quotas and billing-grade usage controls, payload redaction, production deployment hardening, backup/restore drills, load testing, and an independent security review. Do not use real customer payloads or credentials until production data handling and security controls have been reviewed. A controlled pilot must have an explicit customer agreement and operator-managed retention limits.
 
 See `CHECKLIST.md` for the master tracker and `AGENT_WORKFLOW.md` for the engineering workflow.
 

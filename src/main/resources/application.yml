@@ -11,6 +11,16 @@ spring:
     open-in-view: false
   flyway:
     enabled: true
+  mail:
+    host: ${SMTP_HOST:localhost}
+    port: ${SMTP_PORT:1025}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail.smtp.auth: ${SMTP_AUTH:false}
+      mail.smtp.connectiontimeout: ${SMTP_CONNECTION_TIMEOUT_MS:5000}
+      mail.smtp.timeout: ${SMTP_READ_TIMEOUT_MS:5000}
+      mail.smtp.writetimeout: ${SMTP_WRITE_TIMEOUT_MS:5000}
 server:
   port: ${PORT:8080}
 relayguard:
@@ -27,6 +37,12 @@ relayguard:
     max-attempts: ${RELAYGUARD_DELIVERY_MAX_ATTEMPTS:8}
     base-delay-ms: ${RELAYGUARD_DELIVERY_BASE_DELAY_MS:1000}
     max-delay-ms: ${RELAYGUARD_DELIVERY_MAX_DELAY_MS:3600000}
+  notifications:
+    email:
+      enabled: ${RELAYGUARD_EMAIL_NOTIFICATIONS_ENABLED:false}
+      worker-enabled: ${RELAYGUARD_EMAIL_NOTIFICATION_WORKER_ENABLED:${RELAYGUARD_EMAIL_NOTIFICATIONS_ENABLED:false}}
+      from: ${RELAYGUARD_EMAIL_FROM:no-reply@relayguard.local}
+      poll-interval-ms: ${RELAYGUARD_EMAIL_POLL_INTERVAL_MS:1000}
 management:
   endpoints:
     web:

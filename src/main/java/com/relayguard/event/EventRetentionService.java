@@ -2,6 +2,7 @@ package com.relayguard.event;
 
 import com.relayguard.delivery.DeliveryAttemptRepository;
 import com.relayguard.delivery.DeliveryJobRepository;
+import com.relayguard.delivery.EmailNotificationOutboxService;
 import java.time.Instant;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -14,12 +15,14 @@ public class EventRetentionService {
     private final WebhookEventRepository events;
     private final DeliveryAttemptRepository attempts;
     private final DeliveryJobRepository jobs;
+    private final EmailNotificationOutboxService notifications;
 
     public EventRetentionService(WebhookEventRepository events, DeliveryAttemptRepository attempts,
-            DeliveryJobRepository jobs) {
+            DeliveryJobRepository jobs, EmailNotificationOutboxService notifications) {
         this.events = events;
         this.attempts = attempts;
         this.jobs = jobs;
+        this.notifications = notifications;
     }
 
     @Scheduled(fixedDelayString = "${relayguard.retention.cleanup-interval-ms:3600000}")
@@ -33,6 +36,7 @@ public class EventRetentionService {
             if (jobs.hasActiveDelivery(event.getId())) continue;
             attempts.deleteByJob_Event_Id(event.getId());
             jobs.deleteByEvent_Id(event.getId());
+            notifications.deleteForEvent(event.getId());
             events.delete(event);
             purged++;
         }
