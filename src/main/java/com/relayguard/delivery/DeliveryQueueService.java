@@ -90,11 +90,13 @@ public class DeliveryQueueService {
 
         String outcome = result.httpStatus() == null ? "NETWORK_ERROR" : "HTTP_ERROR";
         attempt.complete(now, result.durationMs(), result.httpStatus(), outcome, result.errorCode());
+        WebhookDestination destination = job.getDestination();
         if (retryPolicy.isPermanentHttpFailure(result.httpStatus())
-                || job.getAttemptCount() >= retryPolicy.maxAttempts()) {
+                || job.getAttemptCount() >= destination.getRetryMaxAttempts()) {
             job.markExhausted(result.httpStatus(), result.errorCode());
         } else {
-            job.scheduleRetry(result.httpStatus(), result.errorCode(), retryPolicy.nextAttemptAt(job.getAttemptCount(), now));
+            job.scheduleRetry(result.httpStatus(), result.errorCode(), retryPolicy.nextAttemptAt(
+                    job.getAttemptCount(), now, destination.getRetryBaseDelayMs(), destination.getRetryMaxDelayMs()));
         }
     }
 }

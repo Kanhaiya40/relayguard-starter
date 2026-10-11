@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -44,5 +45,12 @@ public class DestinationController {
             @RequestAttribute(IdentityRequestAttributes.USER_ID) UUID userId) {
         destinations.disable(userId, projectId, destinationId);
         return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{destinationId}/retry-policy")
+    public DestinationResponse updateRetryPolicy(@PathVariable UUID projectId, @PathVariable UUID destinationId,
+            @RequestAttribute(IdentityRequestAttributes.USER_ID) UUID userId,
+            @Valid @RequestBody UpdateDestinationRetryPolicyRequest request) {
+        return destinations.updateRetryPolicy(userId, projectId, destinationId, request);
     }
 }

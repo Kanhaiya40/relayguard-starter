@@ -16,13 +16,15 @@ public class DestinationService {
     private final ProjectAccessService access;
     private final DestinationUrlValidator validator;
     private final AuditEventService audit;
+    private final DeliveryRetryPolicy defaults;
 
     public DestinationService(WebhookDestinationRepository destinations, ProjectAccessService access,
-            DestinationUrlValidator validator, AuditEventService audit) {
+            DestinationUrlValidator validator, AuditEventService audit, DeliveryRetryPolicy defaults) {
         this.destinations = destinations;
         this.access = access;
         this.validator = validator;
         this.audit = audit;
+        this.defaults = defaults;
     }
 
     @Transactional(readOnly = true)
@@ -36,9 +38,30 @@ public class DestinationService {
     public DestinationResponse create(UUID userId, UUID projectId, CreateDestinationRequest request) {
         Project project = access.requireOwner(userId, projectId);
         URI valid = validator.validate(request.url());
-        WebhookDestination saved = destinations.save(new WebhookDestination(project, valid.toASCIIString()));
+        int maxAttempts = request.retryMaxAttempts() == null ? defaults.maxAttempts() : request.retryMaxAttempts();
+        long baseDelay = request.retryBaseDelayMs() == null ? defaults.baseDelayMs() : request.retryBaseDelayMs();
+        long maxDelay = request.retryMaxDelayMs() == null ? defaults.maxDelayMs() : request.retryMaxDelayMs();
+        if (maxDelay < baseDelay) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Maximum retry delay must be at least the base delay");
+        }
+        WebhookDestination saved = destinations.save(new WebhookDestination(
+                project, valid.toASCIIString(), maxAttempts, baseDelay, maxDelay));
         audit.record(project, userId, "DESTINATION_CREATED", "WEBHOOK_DESTINATION", saved.getId());
         return DestinationResponse.from(saved);
+    }
+
+    @Transactional
+    public DestinationResponse updateRetryPolicy(UUID userId, UUID projectId, UUID destinationId,
+            UpdateDestinationRetryPolicyRequest request) {
+        Project project = access.requireOwner(userId, projectId);
+        WebhookDestination destination = destinations.findByIdAndProject_Id(destinationId, project.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Destination not found"));
+        if (request.retryMaxDelayMs() < request.retryBaseDelayMs()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Maximum retry delay must be at least the base delay");
+        }
+        destination.setRetryPolicy(request.retryMaxAttempts(), request.retryBaseDelayMs(), request.retryMaxDelayMs());
+        audit.record(project, userId, "DESTINATION_RETRY_POLICY_UPDATED", "WEBHOOK_DESTINATION", destinationId);
+        return DestinationResponse.from(destination);
     }
 
     @Transactional

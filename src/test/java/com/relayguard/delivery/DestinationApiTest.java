@@ -34,18 +34,30 @@ class DestinationApiTest {
     @Test
     void createsListsAndDisablesDestinationForWorkspaceOwner() throws Exception {
         TestProject project = createProject();
-        String destinationBody = objectMapper.writeValueAsString(Map.of("url", "https://1.1.1.1/webhook"));
+        String destinationBody = objectMapper.writeValueAsString(Map.of("url", "https://1.1.1.1/webhook",
+                "retryMaxAttempts", 5, "retryBaseDelayMs", 2000, "retryMaxDelayMs", 120000));
         String response = mockMvc.perform(post("/api/v1/projects/{id}/destinations", project.projectId())
                         .header("Authorization", "Bearer " + project.token())
                         .contentType(MediaType.APPLICATION_JSON).content(destinationBody))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.enabled").value(true))
+                .andExpect(jsonPath("$.retryMaxAttempts").value(5))
+                .andExpect(jsonPath("$.retryBaseDelayMs").value(2000))
                 .andReturn().getResponse().getContentAsString();
         JsonNode destination = objectMapper.readTree(response);
         mockMvc.perform(get("/api/v1/projects/{id}/destinations", project.projectId())
                         .header("Authorization", "Bearer " + project.token()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(destination.get("id").asText()));
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch(
+                                "/api/v1/projects/{projectId}/destinations/{destinationId}/retry-policy",
+                                project.projectId(), destination.get("id").asText())
+                        .header("Authorization", "Bearer " + project.token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"retryMaxAttempts\":3,\"retryBaseDelayMs\":500,\"retryMaxDelayMs\":30000}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.retryMaxAttempts").value(3))
+                .andExpect(jsonPath("$.retryBaseDelayMs").value(500));
         mockMvc.perform(delete("/api/v1/projects/{projectId}/destinations/{destinationId}",
                         project.projectId(), destination.get("id").asText())
                         .header("Authorization", "Bearer " + project.token()))
@@ -76,6 +88,11 @@ class DestinationApiTest {
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
         }
+        mockMvc.perform(post("/api/v1/projects/{id}/destinations", project.projectId())
+                        .header("Authorization", "Bearer " + project.token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"url\":\"https://1.1.1.1/invalid-retries\",\"retryMaxAttempts\":40}"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -90,6 +107,16 @@ class DestinationApiTest {
 
         mockMvc.perform(get("/api/v1/projects/{id}/destinations", owner.projectId())
                         .header("Authorization", "Bearer " + other.token()))
+                .andExpect(status().isNotFound());
+        JsonNode destination = objectMapper.readTree(mockMvc.perform(get("/api/v1/projects/{id}/destinations", owner.projectId())
+                        .header("Authorization", "Bearer " + owner.token()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).get(0);
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch(
+                                "/api/v1/projects/{projectId}/destinations/{destinationId}/retry-policy",
+                                owner.projectId(), destination.get("id").asText())
+                        .header("Authorization", "Bearer " + other.token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"retryMaxAttempts\":3,\"retryBaseDelayMs\":500,\"retryMaxDelayMs\":30000}"))
                 .andExpect(status().isNotFound());
         mockMvc.perform(get("/api/v1/projects/{id}/audit", owner.projectId())
                         .header("Authorization", "Bearer " + other.token()))

@@ -67,6 +67,15 @@ curl -sS http://localhost:8080/api/v1/projects/REPLACE_WITH_PROJECT_ID/destinati
   -d '{"url":"https://receiver.example.test/webhooks"}'
 ```
 
+Each destination starts with `RELAYGUARD_DELIVERY_MAX_ATTEMPTS`, `RELAYGUARD_DELIVERY_BASE_DELAY_MS`, and `RELAYGUARD_DELIVERY_MAX_DELAY_MS` defaults. Set a destination-specific policy with the owner-only endpoint:
+
+```bash
+curl -sS -X PATCH http://localhost:8080/api/v1/projects/REPLACE_WITH_PROJECT_ID/destinations/REPLACE_WITH_DESTINATION_ID/retry-policy \
+  -H 'Authorization: Bearer REPLACE_WITH_ACCESS_TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{"retryMaxAttempts":5,"retryBaseDelayMs":2000,"retryMaxDelayMs":120000}'
+```
+
 ## Ingest and retrieve an event
 
 Use the project credential as `X-API-Key`:
@@ -106,7 +115,7 @@ curl http://localhost:8080/api/v1/projects/REPLACE_WITH_PROJECT_ID/events/REPLAC
   -H 'Authorization: Bearer REPLACE_WITH_ACCESS_TOKEN'
 ```
 
-The retry policy is bounded and persisted in PostgreSQL; exhausted jobs remain visible in delivery history. Delivery is at least once: receiver endpoints should use the event ID for their own deduplication. RelayGuard cannot guarantee exactly-once processing by a receiver.
+Retry policy is configured per destination: maximum attempts (1–25), base delay, and capped maximum delay (up to 24 hours). These values are persisted with the destination and each delivery job uses its destination's current policy. Changes affect retries that have not yet been exhausted. Exhausted jobs remain visible in delivery history. Delivery is at least once: receiver endpoints should use the event ID for their own deduplication. RelayGuard cannot guarantee exactly-once processing by a receiver.
 
 Event ingestion is limited to 600 requests per project per minute by default. Configure the server-wide limit with `RELAYGUARD_EVENTS_PER_MINUTE`; a rejected request receives `429 Too Many Requests` and a `Retry-After` header. This is an operational safeguard, not a billing or per-customer plan system.
 

@@ -33,13 +33,28 @@ public class WebhookDestination {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    @Column(name = "retry_max_attempts", nullable = false)
+    private int retryMaxAttempts;
+
+    @Column(name = "retry_base_delay_ms", nullable = false)
+    private long retryBaseDelayMs;
+
+    @Column(name = "retry_max_delay_ms", nullable = false)
+    private long retryMaxDelayMs;
+
     protected WebhookDestination() {}
 
     public WebhookDestination(Project project, String targetUrl) {
+        this(project, targetUrl, 8, 1000, 3_600_000);
+    }
+
+    public WebhookDestination(Project project, String targetUrl,
+            int retryMaxAttempts, long retryBaseDelayMs, long retryMaxDelayMs) {
         this.id = UUID.randomUUID();
         this.project = project;
         this.targetUrl = targetUrl;
         this.enabled = true;
+        setRetryPolicy(retryMaxAttempts, retryBaseDelayMs, retryMaxDelayMs);
     }
 
     @PrePersist
@@ -52,6 +67,19 @@ public class WebhookDestination {
     public String getTargetUrl() { return targetUrl; }
     public boolean isEnabled() { return enabled; }
     public Instant getCreatedAt() { return createdAt; }
+    public int getRetryMaxAttempts() { return retryMaxAttempts; }
+    public long getRetryBaseDelayMs() { return retryBaseDelayMs; }
+    public long getRetryMaxDelayMs() { return retryMaxDelayMs; }
+
+    public void setRetryPolicy(int maxAttempts, long baseDelayMs, long maxDelayMs) {
+        if (maxAttempts < 1 || maxAttempts > 25 || baseDelayMs < 1 || baseDelayMs > 86_400_000
+                || maxDelayMs < baseDelayMs || maxDelayMs > 86_400_000) {
+            throw new IllegalArgumentException("Invalid destination retry policy");
+        }
+        this.retryMaxAttempts = maxAttempts;
+        this.retryBaseDelayMs = baseDelayMs;
+        this.retryMaxDelayMs = maxDelayMs;
+    }
 
     public void disable() { enabled = false; }
 }
